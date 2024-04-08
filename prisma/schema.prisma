@@ -1,0 +1,19 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Entidade/Modelo/Tabela de Eventos (tbevents)
+model Events {
+  id              String  @id @unique @default(uuid())
+  title           String
+  details         String?
+  slug            String  @unique
+  maxParticipants Int?    @map("max_participants") // Renomeando a coluna (de camelCase para snake_case)
+
+  @@map("tbevents") // Renomeando a tabela
+}
