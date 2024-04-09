@@ -1,9 +1,16 @@
 import fastify from "fastify";
 import { EventRouter } from "./routers/EventRouter";
+import {
+  serializerCompiler,
+  validatorCompiler,
+} from "fastify-type-provider-zod";
 
 const server = fastify(); // Instância do servidor
+server.setValidatorCompiler(validatorCompiler);
+server.setSerializerCompiler(serializerCompiler);
 
-new EventRouter(server).route(); // Dispondo o controlador das rotas de eventos (/events)
+const oEventRoutes = new EventRouter(server);
+server.register(oEventRoutes.route.bind(oEventRoutes)); // Dispondo o controlador das rotas de eventos (/events)
 
 server.listen({ port: 3333 }).then(() => {
   // Iniciando o servidor

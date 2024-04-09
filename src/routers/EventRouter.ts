@@ -1,6 +1,9 @@
-import { PrismaClient } from "@prisma/client";
 import { FastifyInstance, RouteHandlerMethod } from "fastify";
-import z from "zod";
+import { ZodTypeProvider } from "fastify-type-provider-zod";
+import {Events as ModelEvent} from "@prisma/client"
+import slugify from "slugify";
+import z, { ZodType } from "zod";
+import { prisma as db } from "../lib/prisma";
 
 // Schema de criação de evento
 const SchemaCreateEvent = z.object({
@@ -9,9 +12,17 @@ const SchemaCreateEvent = z.object({
   maxParticipants: z.number().int().positive().optional(),
 });
 
-//Conexão com banco de dados gerenciado pelo prisma ORM
-const db = new PrismaClient({
-  log: ["query"],
+const SchemaEvent = z.exobject({
+    id: z.string(),
+    title: z.string(),
+    details: string | null.
+    slug: string;
+    maxParticipants: number | null
+})
+
+const SchemaResponse = z.object({
+  message: z.string(),
+  data: z.any(),
 });
 
 export class EventRouter {
@@ -21,12 +32,34 @@ export class EventRouter {
   }
 
   /**
-   * Realiza o roteamento.
+   * Realiza o roteamento das rotas de eventos (/events).
    */
-  route() {
-    this.#router
-      .get("/events", this.listEvents)
-      .post("/events", this.createEvent);
+  async route() {
+    return this.#router
+      .withTypeProvider<ZodTypeProvider>()
+      .get(
+        "/events",
+        {
+          schema: {
+            response: {
+              200: z.array(),
+            },
+          },
+        },
+        this.listEvents
+      )
+      .post(
+        "/events",
+        {
+          schema: {
+            body: SchemaCreateEvent,
+            response: {
+              201: SchemaResponse,
+            },
+          },
+        },
+        this.createEvent
+      );
   }
 
   /**
@@ -44,14 +77,26 @@ export class EventRouter {
     const receivedData = SchemaCreateEvent.safeParse(req.body);
 
     if (!receivedData.success) {
-      return rep.status(500).send(receivedData.error.format());
+      return rep.status(401).send(receivedData.error.format());
+    }
+
+    const eventToCreate = {
+      ...receivedData.data,
+      slug: slugify(receivedData.data.title),
+    };
+
+    const hasEventBySlug = await db.events.findUnique({
+      where: { slug: eventToCreate.slug },
+    });
+
+    if (hasEventBySlug) {
+      return rep
+        .status(401)
+        .send({ message: "O Slug já existe, tente modificar o titulo." });
     }
 
     const eventCreated = await db.events.create({
-      data: {
-        ...receivedData.data,
-        slug: new Date().toISOString(),
-      },
+      data: eventToCreate,
     });
     return rep.status(201).send({
       message: "Evento criado com sucesso!",
