@@ -15,13 +15,20 @@ export const SchemaCreateEvent = SchemaEvent.pick({
   maxParticipants: true,
 });
 
-export const SchemaRouteEventsGET = {
+export const SchemaRouteEventsListAllGET = {
   response: {
     200: SchemaResponse(SchemaEvent.array()),
   },
 };
 
-export const SchemaRouteEventsPOST = {
+export const SchemaRouteEventsGetByIdGET = {
+  params: SchemaEvent.pick({ id: true }),
+  response: {
+    200: SchemaResponse(SchemaEvent),
+  },
+};
+
+export const SchemaRouteEventsCreatePOST = {
   body: SchemaCreateEvent,
   response: {
     201: SchemaResponse(SchemaEvent),

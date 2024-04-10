@@ -11,13 +11,29 @@ export const SchemaParticipant = z.object({
   eventId: SchemaEvent.shape.id,
 });
 
-export const SchemaRouteParticipantsGET = {
+export const SchemaRouteParticipantsListAllGET = {
   response: {
     200: SchemaResponse(SchemaParticipant.array()),
   },
 };
 
-export const SchemaRouteParticipantsPOST = {
+export const SchemaRouteParticipantsCredentialsByIdGET = {
+  params: z.object({ id: z.coerce.number().int() }),
+  response: {
+    200: SchemaResponse(
+      SchemaParticipant.pick({
+        name: true,
+        email: true,
+      }).merge(
+        z.object({
+          event: SchemaEvent.pick({ title: true }),
+        })
+      )
+    ),
+  },
+};
+
+export const SchemaRouteParticipantsRegisterOnEventPOST = {
   body: SchemaParticipant.pick({
     name: true,
     email: true,
