@@ -1,29 +1,9 @@
-import { FastifyInstance, RouteHandlerMethod } from "fastify";
+import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
-import {Events as ModelEvent} from "@prisma/client"
 import slugify from "slugify";
-import z, { ZodType } from "zod";
 import { prisma as db } from "../lib/prisma";
-
-// Schema de criação de evento
-const SchemaCreateEvent = z.object({
-  title: z.string().min(4),
-  details: z.string().optional(),
-  maxParticipants: z.number().int().positive().optional(),
-});
-
-const SchemaEvent = z.exobject({
-    id: z.string(),
-    title: z.string(),
-    details: string | null.
-    slug: string;
-    maxParticipants: number | null
-})
-
-const SchemaResponse = z.object({
-  message: z.string(),
-  data: z.any(),
-});
+import { SchemaRouteEventsGET, SchemaRouteEventsPOST } from "../types/Event";
+import { RouterHandler } from "../types/RouterHandler";
 
 export class EventRouter {
   #router: FastifyInstance;
@@ -35,54 +15,52 @@ export class EventRouter {
    * Realiza o roteamento das rotas de eventos (/events).
    */
   async route() {
-    return this.#router
+    this.#router
       .withTypeProvider<ZodTypeProvider>()
       .get(
         "/events",
         {
-          schema: {
-            response: {
-              200: z.array(),
-            },
-          },
+          schema: SchemaRouteEventsGET,
         },
-        this.listEvents
+        this.#listEvents
       )
       .post(
         "/events",
         {
-          schema: {
-            body: SchemaCreateEvent,
-            response: {
-              201: SchemaResponse,
-            },
-          },
+          schema: SchemaRouteEventsPOST,
         },
-        this.createEvent
+        this.#createEvent
       );
   }
 
   /**
    * Listagem de eventos.
    */
-  listEvents: RouteHandlerMethod = async (req, rep) => {
+  #listEvents: RouterHandler<typeof SchemaRouteEventsGET> = async (
+    req,
+    rep
+  ) => {
     const events = await db.events.findMany();
-    return rep.status(200).send(events);
+    return rep.status(200).send({
+      message: `Listando ${events.length} eventos`,
+      data: events,
+    });
   };
 
   /**
    * Criação de evento.
    */
-  createEvent: RouteHandlerMethod = async (req, rep) => {
-    const receivedData = SchemaCreateEvent.safeParse(req.body);
-
-    if (!receivedData.success) {
-      return rep.status(401).send(receivedData.error.format());
-    }
+  #createEvent: RouterHandler<typeof SchemaRouteEventsPOST> = async (
+    req,
+    rep
+  ) => {
+    const { title, details, maxParticipants } = req.body;
 
     const eventToCreate = {
-      ...receivedData.data,
-      slug: slugify(receivedData.data.title),
+      title,
+      details,
+      maxParticipants,
+      slug: slugify(title),
     };
 
     const hasEventBySlug = await db.events.findUnique({
