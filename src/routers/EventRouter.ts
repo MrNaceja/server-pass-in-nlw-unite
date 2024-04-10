@@ -1,18 +1,9 @@
-import { PrismaClient } from "@prisma/client";
-import { FastifyInstance, RouteHandlerMethod } from "fastify";
-import z from "zod";
-
-// Schema de criação de evento
-const SchemaCreateEvent = z.object({
-  title: z.string().min(4),
-  details: z.string().optional(),
-  maxParticipants: z.number().int().positive().optional(),
-});
-
-//Conexão com banco de dados gerenciado pelo prisma ORM
-const db = new PrismaClient({
-  log: ["query"],
-});
+import { FastifyInstance } from "fastify";
+import { ZodTypeProvider } from "fastify-type-provider-zod";
+import slugify from "slugify";
+import { prisma as db } from "../lib/prisma";
+import { SchemaRouteEventsGET, SchemaRouteEventsPOST } from "../types/Event";
+import { RouterHandler } from "../types/RouterHandler";
 
 export class EventRouter {
   #router: FastifyInstance;
@@ -21,37 +12,69 @@ export class EventRouter {
   }
 
   /**
-   * Realiza o roteamento.
+   * Realiza o roteamento das rotas de eventos (/events).
    */
-  route() {
+  async route() {
     this.#router
-      .get("/events", this.listEvents)
-      .post("/events", this.createEvent);
+      .withTypeProvider<ZodTypeProvider>()
+      .get(
+        "/events",
+        {
+          schema: SchemaRouteEventsGET,
+        },
+        this.#listEvents
+      )
+      .post(
+        "/events",
+        {
+          schema: SchemaRouteEventsPOST,
+        },
+        this.#createEvent
+      );
   }
 
   /**
    * Listagem de eventos.
    */
-  listEvents: RouteHandlerMethod = async (req, rep) => {
+  #listEvents: RouterHandler<typeof SchemaRouteEventsGET> = async (
+    req,
+    rep
+  ) => {
     const events = await db.events.findMany();
-    return rep.status(200).send(events);
+    return rep.status(200).send({
+      message: `Listando ${events.length} eventos`,
+      data: events,
+    });
   };
 
   /**
    * Criação de evento.
    */
-  createEvent: RouteHandlerMethod = async (req, rep) => {
-    const receivedData = SchemaCreateEvent.safeParse(req.body);
+  #createEvent: RouterHandler<typeof SchemaRouteEventsPOST> = async (
+    req,
+    rep
+  ) => {
+    const { title, details, maxParticipants } = req.body;
 
-    if (!receivedData.success) {
-      return rep.status(500).send(receivedData.error.format());
+    const eventToCreate = {
+      title,
+      details,
+      maxParticipants,
+      slug: slugify(title),
+    };
+
+    const hasEventBySlug = await db.events.findUnique({
+      where: { slug: eventToCreate.slug },
+    });
+
+    if (hasEventBySlug) {
+      return rep
+        .status(401)
+        .send({ message: "O Slug já existe, tente modificar o titulo." });
     }
 
     const eventCreated = await db.events.create({
-      data: {
-        ...receivedData.data,
-        slug: new Date().toISOString(),
-      },
+      data: eventToCreate,
     });
     return rep.status(201).send({
       message: "Evento criado com sucesso!",
