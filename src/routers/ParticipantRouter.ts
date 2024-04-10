@@ -2,8 +2,9 @@ import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import { prisma as db } from "../lib/prisma";
 import {
+  SchemaRouteParticipantsCheckInGET,
   SchemaRouteParticipantsCredentialsByIdGET,
-  SchemaRouteParticipantsListAllGET,
+  SchemaRouteParticipantsListAllOnEventGET,
   SchemaRouteParticipantsRegisterOnEventPOST,
 } from "../types/Participant";
 import { RouterSchemeHandler } from "../types/RouterSchemeHandler";
@@ -21,11 +22,11 @@ export class ParticipantRouter {
     this.#router
       .withTypeProvider<ZodTypeProvider>()
       .get(
-        "/participants",
+        "/participants/:eventId",
         {
-          schema: SchemaRouteParticipantsListAllGET,
+          schema: SchemaRouteParticipantsListAllOnEventGET,
         },
-        this.#listParticipants
+        this.#listParticipantsOnEvent
       )
       .get(
         "/participants/:id/credentials",
@@ -33,6 +34,13 @@ export class ParticipantRouter {
           schema: SchemaRouteParticipantsCredentialsByIdGET,
         },
         this.#getParticipantCredentialsById
+      )
+      .get(
+        "/participants/:id/check-in",
+        {
+          schema: SchemaRouteParticipantsCheckInGET,
+        },
+        this.#checkIn
       )
       .post(
         "/participants/:eventId",
@@ -44,14 +52,31 @@ export class ParticipantRouter {
   }
 
   /**
-   * Listagem de participantes.
+   * Listagem de participantes no evento.
    */
-  #listParticipants: RouterSchemeHandler<
-    typeof SchemaRouteParticipantsListAllGET
+  #listParticipantsOnEvent: RouterSchemeHandler<
+    typeof SchemaRouteParticipantsListAllOnEventGET
   > = async (req, rep) => {
-    const participants = await db.participants.findMany();
+    const evento = req.params;
+    const { page, query, limit } = req.query;
+
+    const participants = await db.participants.findMany({
+      where: query
+        ? {
+            ...evento,
+            name: {
+              contains: query,
+            },
+          }
+        : evento,
+      take: limit,
+      skip: page * limit,
+      orderBy: {
+        subscribedAt: "desc",
+      },
+    });
     return rep.status(200).send({
-      message: `Listando ${participants.length} participantes.`,
+      message: `Há ${participants.length} participantes no evento.`,
       data: participants,
     });
   };
@@ -80,16 +105,23 @@ export class ParticipantRouter {
     });
 
     if (!participantCredentials) {
-      return rep.status(401).send({
+      return rep.status(404).send({
         message:
           "Opss, não foram encontradas as credenciais deste participante.",
-        data: null,
       });
     }
 
+    const checkInUrl = new URL(
+      `/participants/${id}/check-in`,
+      process.env.API_SERVER_URL
+    ).toString();
+
     return rep.status(200).send({
       message: "Credenciais do Participante encontradas com sucesso.",
-      data: participantCredentials,
+      data: {
+        ...participantCredentials,
+        checkInUrl,
+      },
     });
   };
 
@@ -117,9 +149,8 @@ export class ParticipantRouter {
     });
 
     if (!eventInfo) {
-      return rep.status(401).send({
+      return rep.status(404).send({
         message: "Opss, Evento não encontrado.",
-        data: null,
       });
     }
     const {
@@ -131,9 +162,8 @@ export class ParticipantRouter {
       maxParticipants &&
       amountParticipantRegisteredOnEvent >= maxParticipants
     ) {
-      return rep.status(401).send({
+      return rep.status(400).send({
         message: `Opss, O limite de ${maxParticipants} participante(s) para o evento foi atingido.`,
-        data: null,
       });
     }
 
@@ -150,7 +180,6 @@ export class ParticipantRouter {
       return rep.status(400).send({
         message:
           "Já existe um participante com este email cadastrado neste evento.",
-        data: null,
       });
     }
 
@@ -167,4 +196,42 @@ export class ParticipantRouter {
       data: participantCreated,
     });
   };
+
+  #checkIn: RouterSchemeHandler<typeof SchemaRouteParticipantsCheckInGET> =
+    async (req, rep) => {
+      const { id } = req.params;
+
+      const participant = await db.participants.findUnique({
+        where: {
+          id,
+        },
+        select: {
+          checkInAt: true,
+        },
+      });
+
+      if (!participant) {
+        return rep.status(404).send({
+          message: "Participante não registrado.",
+        });
+      }
+
+      if (participant.checkInAt) {
+        return rep
+          .status(400)
+          .send({ message: "Participante já efetuou check-in." });
+      }
+
+      participant.checkInAt = new Date(); // Registrando o check-in
+      await db.participants.update({
+        data: participant,
+        where: {
+          id,
+        },
+      });
+
+      return rep.status(200).send({
+        message: "Check-in efetuado com sucesso.",
+      });
+    };
 }

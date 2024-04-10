@@ -1,7 +1,7 @@
 import z, { ZodSchema } from "zod";
 
-export const SchemaResponse = (schemaData: ZodSchema) =>
+export const SchemaResponse = (schemaData?: ZodSchema) =>
   z.object({
     message: z.string(),
-    data: schemaData,
+    data: schemaData || z.null().optional(),
   });

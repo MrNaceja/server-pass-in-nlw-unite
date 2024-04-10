@@ -1,6 +1,7 @@
 import z from "zod";
 import { SchemaEvent } from "./Event";
 import { SchemaResponse } from "./Response";
+import { FastifySchema } from "fastify";
 
 export const SchemaParticipant = z.object({
   id: z.number().int(),
@@ -11,7 +12,13 @@ export const SchemaParticipant = z.object({
   eventId: SchemaEvent.shape.id,
 });
 
-export const SchemaRouteParticipantsListAllGET = {
+export const SchemaRouteParticipantsListAllOnEventGET = {
+  params: SchemaParticipant.pick({ eventId: true }),
+  querystring: z.object({
+    page: z.string().optional().default("0").transform(Number),
+    query: z.string().optional(),
+    limit: z.string().default("10").transform(Number),
+  }),
   response: {
     200: SchemaResponse(SchemaParticipant.array()),
   },
@@ -27,9 +34,17 @@ export const SchemaRouteParticipantsCredentialsByIdGET = {
       }).merge(
         z.object({
           event: SchemaEvent.pick({ title: true }),
+          checkInUrl: z.string().url(),
         })
       )
     ),
+  },
+};
+
+export const SchemaRouteParticipantsCheckInGET = {
+  params: z.object({ id: z.coerce.number().int() }),
+  response: {
+    200: SchemaResponse(),
   },
 };
 

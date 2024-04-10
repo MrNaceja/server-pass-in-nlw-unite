@@ -53,7 +53,7 @@ export class EventRouter {
   ) => {
     const events = await db.events.findMany();
     return rep.status(200).send({
-      message: `Listando ${events.length} eventos.`,
+      message: `Há ${events.length} eventos.`,
       data: events,
     });
   };
@@ -72,9 +72,8 @@ export class EventRouter {
       });
 
       if (!eventFounded) {
-        return rep.status(401).send({
+        return rep.status(404).send({
           message: "Opss, não há um evento com este ID.",
-          data: null,
         });
       }
 
@@ -104,7 +103,7 @@ export class EventRouter {
 
       if (hasEventBySlug) {
         return rep
-          .status(401)
+          .status(400)
           .send({ message: "O Slug já existe, tente modificar o titulo." });
       }
 
