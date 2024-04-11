@@ -1,7 +1,6 @@
 import z from "zod";
 import { SchemaEvent } from "./Event";
 import { SchemaResponse } from "./Response";
-import { FastifySchema } from "fastify";
 
 export const SchemaParticipant = z.object({
   id: z.number().int(),
@@ -13,6 +12,8 @@ export const SchemaParticipant = z.object({
 });
 
 export const SchemaRouteParticipantsListAllOnEventGET = {
+  summary: "Lista os participantes do evento",
+  tags: ["/participants"],
   params: SchemaParticipant.pick({ eventId: true }),
   querystring: z.object({
     page: z.string().optional().default("0").transform(Number),
@@ -25,6 +26,8 @@ export const SchemaRouteParticipantsListAllOnEventGET = {
 };
 
 export const SchemaRouteParticipantsCredentialsByIdGET = {
+  summary: "Retorna as credenciais do participante a partir de seu ID",
+  tags: ["/participants"],
   params: z.object({ id: z.coerce.number().int() }),
   response: {
     200: SchemaResponse(
@@ -42,6 +45,8 @@ export const SchemaRouteParticipantsCredentialsByIdGET = {
 };
 
 export const SchemaRouteParticipantsCheckInGET = {
+  summary: "Realiza o check-in do participante no evento",
+  tags: ["/participants"],
   params: z.object({ id: z.coerce.number().int() }),
   response: {
     200: SchemaResponse(),
@@ -49,6 +54,8 @@ export const SchemaRouteParticipantsCheckInGET = {
 };
 
 export const SchemaRouteParticipantsRegisterOnEventPOST = {
+  summary: "Registra um participante em um evento",
+  tags: ["/participants"],
   body: SchemaParticipant.pick({
     name: true,
     email: true,

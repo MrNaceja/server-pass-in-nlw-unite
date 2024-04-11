@@ -2,11 +2,13 @@ import { FastifyInstance } from "fastify";
 import { ZodTypeProvider } from "fastify-type-provider-zod";
 import slugify from "slugify";
 import { prisma as db } from "../lib/prisma";
+
 import {
   SchemaRouteEventsListAllGET,
   SchemaRouteEventsCreatePOST,
   SchemaRouteEventsGetByIdGET,
 } from "../types/Event";
+
 import { RouterSchemeHandler } from "../types/RouterSchemeHandler";
 
 export class EventRouter {
